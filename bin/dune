@@ -1,0 +1,1 @@
+(executable (public_name ical_of_edt) (libraries edt icalendar spec unix re))
