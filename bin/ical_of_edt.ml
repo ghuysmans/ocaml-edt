@@ -6,15 +6,11 @@ let generation_time =
   | Some t -> t
 
 (* FIXME lang? *)
-let mk_event ~id ~location start doe ?freq ?description summary = `Event {
+let mk_event ~id ~location start duration ?freq ?description summary = `Event {
   dtstamp = Params.empty, generation_time;
   uid = Params.empty, string_of_int id; (* FIXME *)
   dtstart = Params.empty, `Datetime (`Local start);
-  dtend_or_duration = Some (
-    match doe with
-    | `Minutes m -> `Duration (Params.empty, Ptime.Span.of_int_s (m * 60))
-    | `End e -> `Dtend (Params.empty, `Datetime (`Local e))
-  );
+  dtend_or_duration = Some (`Duration (Params.empty, duration));
   rrule = (
     match freq with
     | None -> None
@@ -56,7 +52,7 @@ let add_span t span =
   | None -> failwith "Ptime.add_span"
   | Some t -> t
 
-let interval_of_timetable default_duration fst (tt : Edt.Timetable.t) =
+let interval_of_timetable hour first (tt : Edt.Timetable.t) =
   let d =
     match tt.day with
     | Monday -> 0
@@ -67,23 +63,9 @@ let interval_of_timetable default_duration fst (tt : Edt.Timetable.t) =
     | Saturday -> 5
     | Sunday -> 6
   in
-  let open Re in
-  let conv g =
-    let i i = Group.get g i |> int_of_string in
-    (  d * 24 * 60 * 60 +
-     i 1 * 60 * 60 +
-     i 2 * 60) |>
-    Ptime.Span.of_int_s |>
-    add_span fst
-  in
-  match
-    let n = rep1 (rg '0' '9') in
-    all (compile (seq [group n; set ".:h"; group n])) tt.hour
-  with
-  | [] -> assert false
-  | [start] -> conv start, `Minutes default_duration
-  | [start; stop] -> conv start, `End (conv stop)
-  | _ -> failwith "invalid Hour range format"
+  let sec hour (h, m) = (h * hour + m) * 60 in
+  d * 24 * 60 * 60 + sec 60 tt.start |> Ptime.Span.of_int_s |> add_span first,
+  Ptime.Span.of_int_s (sec hour tt.duration)
 
 let bulk (t : Spec.t) =
   let first =
@@ -111,7 +93,7 @@ let bulk (t : Spec.t) =
   in
   let h = H.create 100 in
   import t.input |> List.iter (fun (tt : Edt.Timetable.t) ->
-    let start, doe = interval_of_timetable t.slot_duration first tt in
+    let start, duration = interval_of_timetable t.hour first tt in
     let add typ name description =
       match t.only with
       | Some o when o <> name -> ()
@@ -120,7 +102,7 @@ let bulk (t : Spec.t) =
           ~id:tt.line
           ~location:(String.concat " / " tt.rooms)
           start
-          doe
+          duration
           ?freq
           description
         )

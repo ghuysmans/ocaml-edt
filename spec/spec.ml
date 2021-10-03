@@ -5,7 +5,7 @@ type date = Ptime.date
 
 type t = {
   timezone: string;
-  slot_duration: int;
+  hour: int;
   first: date option;
   until: date option;
   only: string option;
@@ -20,9 +20,9 @@ type t = {
 
 open Cmdliner
 
-let slot_duration =
-  let doc = s_ "slot duration (in minutes) when Hour isn't an hh:mm-hh:mm range" in
-  Arg.(value & opt int 60 & info ~doc ["d"; "duration"])
+let hour =
+  let doc = s_ "number of minutes in an hour" in
+  Arg.(value & opt int 60 & info ~doc ["H"; "hour"])
 
 let ptime_of_date d =
   match Ptime.of_date d with
@@ -105,7 +105,7 @@ let argv prog t =
   [[prog]] |>
   named "T" string t.timezone |>
   option "only" string t.only |>
-  named "d" int t.slot_duration |>
+  named "H" int t.hour |>
   option "from" date t.first |>
   option "u" date t.until |>
   flag "t" t.generate_teachers |>
@@ -123,13 +123,13 @@ open Term
 
 let term =
   (* FIXME this is awful *)
-  let f timezone only slot_duration
+  let f timezone only hour
         first until
         generate_teachers
         show_classes generate_students
         generate_rooms
         input output_dir =
-    {timezone; only; slot_duration;
+    {timezone; only; hour;
      first; until;
      generate_teachers;
      show_classes; generate_students;
@@ -137,7 +137,7 @@ let term =
      input; output_dir}
   in
   const f $
-    timezone $ only $ slot_duration $
+    timezone $ only $ hour $
     first $ until $
     generate_teachers $
     show_classes $ generate_students $
